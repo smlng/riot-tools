@@ -7,7 +7,6 @@
  */
 
 #include <stdio.h>
-#include "thread.h"
 #include "net/af.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/tcp.h"
@@ -15,13 +14,15 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+// the port to listen for tcp connections
 #ifndef TCP_LISTEN_PORT
 #define TCP_LISTEN_PORT     (24911U)
 #endif
-
+// length of buffer for tcp receive
 #define TCP_LISTEN_BUFLEN   (512U)
-#define TCP_LISTEN_TIMEOUT   (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
-
+// timeout in usec for tcp receive
+#define TCP_LISTEN_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
+// max num of errors, before exit
 #define MAX_ERROR_COUNT     (100U)
 
 int listen(uint16_t port)
