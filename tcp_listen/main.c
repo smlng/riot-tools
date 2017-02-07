@@ -30,14 +30,14 @@ int listen(uint16_t port)
     /* Initialize tcb struct */
     gnrc_tcp_tcb_t tcb;
     gnrc_tcp_tcb_init(&tcb);
-    DEBUG("> Initialized TCB ...");
+    DEBUG("> Initialized TCB.\n");
     /* open listening port */
     int ret = -1;
     if ((ret = gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port)) != 0) {
         printf("[ERROR] gnrc_tcp_open_passive (%d)\n", ret);
         return ret;
     }
-    DEBUG("> opened passive connection, waiting for connection ...");
+    DEBUG("> opened passive connection, waiting for connection ...\n");
     uint8_t buf[TCP_LISTEN_BUFLEN];
     unsigned errcnt = 0;
     /* receive loop */

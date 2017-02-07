@@ -33,5 +33,6 @@ USEMODULE += gnrc_netdev_default
 USEMODULE += auto_init_gnrc_netif
 USEMODULE += gnrc_ipv6_default
 USEMODULE += gnrc_tcp
+USEMODULE += gnrc_pktdump
 
 include $(RIOTBASE)/Makefile.include
