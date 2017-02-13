@@ -27,37 +27,34 @@
 
 int listen(uint16_t port)
 {
-    /* Initialize tcb struct */
-    gnrc_tcp_tcb_t tcb;
-    gnrc_tcp_tcb_init(&tcb);
-    DEBUG("> Initialized TCB.\n");
-    /* open listening port */
-    int ret = -1;
-    if ((ret = gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port)) != 0) {
-        printf("[ERROR] gnrc_tcp_open_passive (%d)\n", ret);
-        return ret;
-    }
-    DEBUG("> opened passive connection, waiting for connection ...\n");
-    uint8_t buf[TCP_LISTEN_BUFLEN];
     unsigned errcnt = 0;
-    /* receive loop */
+    gnrc_tcp_tcb_t tcb;
     while (errcnt < MAX_ERROR_COUNT) {
-        memset(buf, 0, TCP_LISTEN_BUFLEN);
-        ret = gnrc_tcp_recv(&tcb, (void *)buf, (TCP_LISTEN_BUFLEN-1), (TCP_LISTEN_TIMEOUT));
-        if (ret > 0) { /* got something */
+        gnrc_tcp_tcb_init(&tcb);
+        DEBUG("[SUCCESS] Initialized TCB.\n");
+        /* open listening port */
+        if (gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port) != 0) {
+            puts("[ERROR] gnrc_tcp_open_passive!\n");
+            return 1;
+        }
+        DEBUG("[SUCCESS] opened passive connection, waiting for connection ...\n");
+        uint8_t buf[TCP_LISTEN_BUFLEN];
+        /* receive loop */
+        while(1) {
+            memset(buf, 0, TCP_LISTEN_BUFLEN);
+            if(gnrc_tcp_recv(&tcb, (void *)buf, (TCP_LISTEN_BUFLEN-1),
+                             (TCP_LISTEN_TIMEOUT)) < 0) {
+                puts("[ERROR] gnrc_tcp_recv, reset connection ...");
+                break;
+            }
+            /* got something */
             printf("received message: %s\n", buf);
         }
-        else if (ret == -EAGAIN) {
-            printf("[ERROR] gnrc_tcp_recv (%d)\n", ret);
-            ++errcnt;
-        }
-        else {
-            break;
-        }
+        ++errcnt;
+        /* close connection and cleanup */
+        gnrc_tcp_close(&tcb);
     }
-    puts("[ERROR] stop listening, too many errors!");
-    /* Close Connection */
-    gnrc_tcp_close(&tcb);
+    printf("[INFO] stop listening, connection limit (%d)!\n", MAX_ERROR_COUNT);
     return 0;
 }
 

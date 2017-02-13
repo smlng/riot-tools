@@ -45,14 +45,14 @@ int listen(uint16_t port)
             puts("[ERROR] sock_tcp_listen!");
             return 1;
         }
-        puts("[SUCCESS] sock_tcp_listen \n");
+        DEBUG("[SUCCESS] sock_tcp_listen \n");
         /* waiting for connection */
         sock_tcp_t *sock = NULL;
         if (0 != sock_tcp_accept(&queue, &sock, SOCK_NO_TIMEOUT)) {
             puts("[ERROR] sock_tcp_accept!");
             return 2;
         }
-        puts("[SUCCESS] sock_tcp_accept");
+        DEBUG("[SUCCESS] sock_tcp_accept");
         /* got a connection, start receiving */
         uint8_t buf[TCP_LISTEN_BUFLEN];
         while (errcnt < MAX_ERROR_COUNT) {
@@ -61,6 +61,7 @@ int listen(uint16_t port)
                 puts("[ERROR] sock_tcp_read, reset connection ...");
                 break;
             }
+            /* got something */
             printf("received data: %s\n", buf);
         }
         ++errcnt;
