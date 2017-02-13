@@ -41,7 +41,7 @@ int listen(uint16_t port)
     uint8_t buf[TCP_LISTEN_BUFLEN];
     unsigned errcnt = 0;
     /* receive loop */
-    while(errcnt < MAX_ERROR_COUNT) {
+    while (errcnt < MAX_ERROR_COUNT) {
         memset(buf, 0, TCP_LISTEN_BUFLEN);
         ret = gnrc_tcp_recv(&tcb, (void *)buf, (TCP_LISTEN_BUFLEN-1), (TCP_LISTEN_TIMEOUT));
         if (ret > 0) { /* got something */

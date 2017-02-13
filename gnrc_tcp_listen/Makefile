@@ -1,5 +1,5 @@
 # name of your application
-APPLICATION = tools_tcp_listen
+APPLICATION = tools_gnrc_tcp_listen
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= native
