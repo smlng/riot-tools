@@ -10,8 +10,6 @@ First, setup local networking for the test:
 
 ```
 </path/to/riot>/dist/tools/tapsetup/tapsetup -c 1
-# on macOS set lladdr on bridge interface
-sudo ifconfig bridge0 inet6 fe80::cafe:cafe:cafe:1
 ```
 
 Second, build and run the tcp_listen tool with RIOT on native.
