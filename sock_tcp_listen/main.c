@@ -22,51 +22,53 @@
 #define TCP_LISTEN_PORT     (24911U)
 #endif
 /* length of buffer for tcp receive */
-#define TCP_LISTEN_BUFLEN   (512U)
+#define TCP_LISTEN_BUFLEN   (256U)
 /* timeout in usec for tcp receive */
 #define TCP_LISTEN_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
 /* sock lwip defines */
-#define TCP_QUEUE_SIZE  (1)
+#define TCP_QUEUE_SIZE      (1)
 #define TCP_NETIF           (1)
 
 int listen(uint16_t port)
 {
+    unsigned errcnt = 0;
     sock_tcp_queue_t queue;
     sock_tcp_t queue_array[TCP_QUEUE_SIZE];
     const sock_tcp_ep_t local = {   .family = AF_INET6,
                                     .port = port,
                                     .netif = TCP_NETIF };
-    /* open listing port */
-    if (0 != sock_tcp_listen(&queue, &local, queue_array, TCP_QUEUE_SIZE,
-                             SOCK_FLAGS_REUSE_EP)) {
-        puts("[ERROR] sock_tcp_listen!");
-        return 1;
-    }
-    puts("[SUCCESS] sock_tcp_listen \n");
-    /* waiting for connection */
-    sock_tcp_t *sock = NULL;
-    if (0 != sock_tcp_accept(&queue, &sock, SOCK_NO_TIMEOUT)) {
-        puts("[ERROR] sock_tcp_accept!");
-        return 2;
-    }
-    puts("[SUCCESS] sock_tcp_accept");
-    /* got a connection, start receiving */
-    uint8_t buf[TCP_LISTEN_BUFLEN];
-    unsigned errcnt = 0;
+
     while (errcnt < MAX_ERROR_COUNT) {
-        memset(buf, 0, TCP_LISTEN_BUFLEN);
-        if (sock_tcp_read(sock, buf, (TCP_LISTEN_BUFLEN-1), SOCK_NO_TIMEOUT) > 0) {
-            printf("received message: %s\n", buf);
+        /* open listing port */
+        if (0 != sock_tcp_listen(&queue, &local, queue_array, TCP_QUEUE_SIZE,
+                                 SOCK_FLAGS_REUSE_EP)) {
+            puts("[ERROR] sock_tcp_listen!");
+            return 1;
         }
-        else {
-            ++errcnt;
+        puts("[SUCCESS] sock_tcp_listen \n");
+        /* waiting for connection */
+        sock_tcp_t *sock = NULL;
+        if (0 != sock_tcp_accept(&queue, &sock, SOCK_NO_TIMEOUT)) {
+            puts("[ERROR] sock_tcp_accept!");
+            return 2;
         }
+        puts("[SUCCESS] sock_tcp_accept");
+        /* got a connection, start receiving */
+        uint8_t buf[TCP_LISTEN_BUFLEN];
+        while (errcnt < MAX_ERROR_COUNT) {
+            memset(buf, 0, TCP_LISTEN_BUFLEN);
+            if (sock_tcp_read(sock, buf, (TCP_LISTEN_BUFLEN-1), SOCK_NO_TIMEOUT) < 0) {
+                puts("[ERROR] sock_tcp_read, reset connection ...");
+                break;
+            }
+            printf("received data: %s\n", buf);
+        }
+        ++errcnt;
+        /* close connection and cleanup */
+        sock_tcp_disconnect(sock);
+        sock_tcp_stop_listen(&queue);
     }
-    puts("[ERROR] stop listening, too many errors!");
-    /* close connection and cleanup */
-    sock_tcp_disconnect(sock);
-    sock = NULL;
-    sock_tcp_stop_listen(&queue);
+    printf("[INFO] stop listening, connection limit (%d)!\n", MAX_ERROR_COUNT);
     return 0;
 }
 
