@@ -22,19 +22,17 @@ ifneq (0, $(USE_LWIP_TCP))
 # settings for lwip tcp
 CFLAGS += -DUSE_LWIP_TCP
 
+USEMODULE += lwip lwip_ipv6_autoconfig lwip_sock_ip lwip_netdev
+USEMODULE += lwip_udp lwip_sock_udp
+USEMODULE += lwip_tcp lwip_sock_tcp
 USEMODULE += ipv6_addr
-USEMODULE += lwip_ipv6_autoconfig
+USEMODULE += od
+USEMODULE += netdev_default
 
-USEMODULE += inet_csum
-USEMODULE += lwip_ethernet lwip_netdev
-USEMODULE += lwip_sock_tcp
-USEMODULE += netdev_tap
+ifeq ($(BOARD),native)
+  USEMODULE += lwip_ethernet
+endif
 
-DISABLE_MODULE += auto_init
-
-CFLAGS += -DDEVELHELP
-CFLAGS += -DSO_REUSE
-CFLAGS += -DLWIP_SO_RCVTIMEO
 else
 # settings for gnrc tcp
 USEMODULE += gnrc_netdev_default

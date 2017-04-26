@@ -3,7 +3,7 @@
 
 #include "log.h"
 #include "net/af.h"
-#include "net/gnrc/ipv6.h"
+#include "net/ipv6/addr.h"
 #include "xtimer.h"
 
 #ifndef MEASUREMENT_H

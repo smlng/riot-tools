@@ -15,6 +15,7 @@ extern int _gnrc_tcp_recv(uint16_t port, uint32_t bytes, uint16_t loops);
 extern int _gnrc_tcp_send(const ipv6_addr_t *addr, uint16_t port, uint32_t bytes, uint16_t loops);
 #else
 #include "lwip.h"
+#include "lwip/netif.h"
 extern int _lwip_tcp_recv(uint16_t port, uint32_t bytes, uint16_t loops);
 extern int _lwip_tcp_send(const ipv6_addr_t *addr, uint16_t port, uint32_t bytes, uint16_t loops);
 #endif /* USE_LWIP_TCP */
@@ -125,7 +126,15 @@ int main(void)
         }
     }
 #else
-    lwip_bootstrap();
+    for (struct netif *iface = netif_list; iface != NULL; iface = iface->next) {
+        char addrstr[IPV6_ADDR_MAX_STR_LEN];
+        for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+            if (!ipv6_addr_is_unspecified((ipv6_addr_t *)&iface->ip6_addr[i])) {
+                printf(" -- %s\n", ipv6_addr_to_str(addrstr, (ipv6_addr_t *)&iface->ip6_addr[i],
+                                                       sizeof(addrstr)));
+            }
+        }
+    }
 #endif /* USE_LWIP_TCP */
     puts("-----------------------------------------------------------");
     puts("Init shell now!");

@@ -1,6 +1,7 @@
 #ifdef USE_LWIP_TCP
 #include "lwip.h"
 #include "lwip/netif.h"
+#include "net/ipv6/addr.h"
 #include "net/sock/tcp.h"
 
 #include "measurement.h"
