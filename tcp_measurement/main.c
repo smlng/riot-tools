@@ -11,6 +11,8 @@
 #include "measurement.h"
 
 #ifndef USE_LWIP_TCP
+#include "net/af.h"
+#include "net/gnrc/ipv6.h"
 extern int _gnrc_tcp_recv(uint16_t port, uint32_t bytes, uint16_t loops);
 extern int _gnrc_tcp_send(const ipv6_addr_t *addr, uint16_t port, uint32_t bytes, uint16_t loops);
 #else
