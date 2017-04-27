@@ -20,9 +20,22 @@
 #ifdef USE_LWIP_TCP
 #include "lwip.h"
 #include "lwip/netif.h"
-#else
+#include "net/sock/tcp.h"
+
+#define LWIP_SOCK_INBUF_SIZE         (256)
+#define LWIP_SERVER_MSG_QUEUE_SIZE   (8)
+#define LWIP_SERVER_BUFFER_SIZE      (64)
+
+static sock_tcp_t server_sock;
+//static sock_tcp_t client_sock;
+static sock_tcp_queue_t server_queue;
+static msg_t server_msg_queue[LWIP_SERVER_MSG_QUEUE_SIZE];
+
+#else /* that is GNRC TCP */
+
 #include "net/gnrc/tcp.h"
-#define TCP_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
+#define GNRC_TCP_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
+
 #endif /* USE_LWIP_TCP */
 
 #define MIN(a, b)            ((a > b) ? b : a)
@@ -33,7 +46,7 @@
 #endif
 // length of buffer for tcp receive
 #define TCP_BUFLEN          (8 * 1024U) /* 8K default */
-#define TCP_TEST_DEFSIZE    (1200U)     /* default send/recv size */
+#define TCP_TEST_DEFSIZE    (1220U)     /* default send/recv size */
 #define TCP_TEST_DEFCOUNT   (1000U)     /* default send/recv count */
 #define TCP_TEST_PATTERN    (66U)       /* HEX = 0x42 */
 #define TCP_TEST_STATVAL    (100U)      /* print stats every N send/recv */
@@ -87,18 +100,33 @@ static int tcp_recv(int argc, char **argv)
     int ret = -42;
     /* start listening */
 #ifdef USE_LWIP_TCP
-        return _lwip_tcp_recv(port, bytes, loops);
+    sock_tcp_ep_t server_addr = SOCK_IPV6_EP_ANY;
+    server_addr.port = port;
+    msg_init_queue(server_msg_queue, LWIP_SERVER_MSG_QUEUE_SIZE);
+    ret = sock_tcp_listen(&server_queue, &server_addr, &server_sock, 1, 0);
+    if (ret != 0) {
+        LOG_ERROR("[ERROR] LWIP sock_tcp_listen failed!\n");
+        return -5;
+    }
+    LOG_INFO("[SUCCESS] LWIP waiting for connections ...\n");
+    sock_tcp_t *sock = NULL;
+    ret = sock_tcp_accept(&server_queue, &sock, SOCK_NO_TIMEOUT);
 #else
     gnrc_tcp_tcb_t tcb;
-    gnrc_tcp_tcb_init(&tcb);
+    ret = gnrc_tcp_tcb_init(&tcb);
+    if (ret != 0) {
+        LOG_ERROR("[ERROR] failed to init TCB!\n");
+        return -5;
+    }
     LOG_INFO("[SUCCESS] Initialized TCB.\n");
     /* open listening port */
     ret = gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port);
 #endif /* USE_LWIP_TCP */
     if (ret != 0) {
-        LOG_ERROR("[ERROR] failed to open passive connection!\n");
+        LOG_ERROR("[ERROR] failed to accept connection!\n");
         return -6;
     }
+    LOG_INFO("[SUCCESS] accepted connection.\n");
     uint64_t now, begin;
     uint32_t recv_bytes = 0;
     uint64_t diff_us = 0;
@@ -107,8 +135,9 @@ static int tcp_recv(int argc, char **argv)
     /* receive loop */
     while (recv_count < count) {
 #ifdef USE_LWIP_TCP
+        ret = sock_tcp_read(sock, (char *)buf, MIN(TCP_BUFLEN, bytes), SOCK_NO_TIMEOUT);
 #else
-        ret = gnrc_tcp_recv(&tcb, (void *)buf, MIN(TCP_BUFLEN, bytes), (TCP_TIMEOUT));
+        ret = gnrc_tcp_recv(&tcb, (void *)buf, MIN(TCP_BUFLEN, bytes), GNRC_TCP_TIMEOUT);
 #endif /* USE_LWIP_TCP */
         if (ret < 0) {
             puts("error, failed to receive!");
@@ -129,6 +158,7 @@ static int tcp_recv(int argc, char **argv)
     }
     /* close connection and cleanup anyway */
 #ifdef USE_LWIP_TCP
+    sock_tcp_disconnect(sock);
 #else
     gnrc_tcp_close(&tcb);
 #endif /* USE_LWIP_TCP */
