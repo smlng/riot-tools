@@ -114,11 +114,7 @@ static int tcp_recv(int argc, char **argv)
     ret = sock_tcp_accept(&server_queue, &sock, SOCK_NO_TIMEOUT);
 #else
     gnrc_tcp_tcb_t tcb;
-    ret = gnrc_tcp_tcb_init(&tcb);
-    if (ret != 0) {
-        LOG_ERROR("[ERROR] failed to init TCB!\n");
-        return -5;
-    }
+    gnrc_tcp_tcb_init(&tcb);
     LOG_INFO("[SUCCESS] Initialized TCB.\n");
     /* open listening port */
     ret = gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port);
