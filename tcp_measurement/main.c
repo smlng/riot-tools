@@ -73,8 +73,8 @@ static int tcp_recv(int argc, char **argv)
     uint32_t count = TCP_TEST_DEFCOUNT;
     if ((argc < 2) || (argc > 4)) {
         puts("usage: listen PORT [SIZE] [COUNT]");
-        printf("    listen on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
-        printf("    and stop after COUNT (%d) receive calls.", TCP_TEST_DEFCOUNT);
+        printf("    listen on PORT with buffer of SIZE (%dB)\n", TCP_TEST_DEFSIZE);
+        printf("    and stop after COUNT (%d) receive calls.\n", TCP_TEST_DEFCOUNT);
         return -1;
     }
     /* parse port */
@@ -171,8 +171,8 @@ static int tcp_send(int argc, char **argv)
 
     if ((argc < 2) || (argc > 5)) {
         puts("usage: send ADDR PORT [SIZE] [COUNT]");
-        printf("    send to ADDR on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
-        printf("    and stop after COUNT (%d) send calls.", TCP_TEST_DEFCOUNT);
+        printf("    send to ADDR on PORT with buffer of SIZE (%dB)\n", TCP_TEST_DEFSIZE);
+        printf("    and stop after COUNT (%d) send calls.\n", TCP_TEST_DEFCOUNT);
         return -1;
     }
 
