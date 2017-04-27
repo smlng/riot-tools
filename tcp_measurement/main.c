@@ -22,12 +22,13 @@
 #include "lwip/netif.h"
 #include "net/sock/tcp.h"
 
-#define LWIP_SOCK_INBUF_SIZE         (256)
-#define LWIP_SERVER_MSG_QUEUE_SIZE   (8)
-#define LWIP_SERVER_BUFFER_SIZE      (64)
+#define LWIP_SOCK_INBUF_SIZE            (256)
+#define LWIP_SERVER_MSG_QUEUE_SIZE      (8)
+#define LWIP_SERVER_BUFFER_SIZE         (64)
+#define LWIP_LOCAL_PORT                 (4614)
 
 static sock_tcp_t server_sock;
-//static sock_tcp_t client_sock;
+static sock_tcp_t client_sock;
 static sock_tcp_queue_t server_queue;
 static msg_t server_msg_queue[LWIP_SERVER_MSG_QUEUE_SIZE];
 
@@ -64,11 +65,11 @@ static const shell_command_t shell_commands[] = {
 };
 
 static uint8_t buf[TCP_BUFLEN];
-static uint32_t bytes = TCP_TEST_DEFSIZE;
-static uint32_t count = TCP_TEST_DEFCOUNT;
 
 static int tcp_recv(int argc, char **argv)
 {
+    uint32_t bytes = TCP_TEST_DEFSIZE;
+    uint32_t count = TCP_TEST_DEFCOUNT;
     if ((argc < 2) || (argc > 4)) {
         puts("usage: listen PORT [SIZE] [COUNT]");
         printf("    listen on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
@@ -168,6 +169,9 @@ static int tcp_recv(int argc, char **argv)
 
 static int tcp_send(int argc, char **argv)
 {
+    uint32_t bytes = TCP_TEST_DEFSIZE;
+    uint32_t count = TCP_TEST_DEFCOUNT;
+
     if ((argc < 2) || (argc > 5)) {
         puts("usage: send ADDR PORT [SIZE] [COUNT]");
         printf("    send to ADDR on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
@@ -205,8 +209,13 @@ static int tcp_send(int argc, char **argv)
     }
     int ret = -42;
 #ifdef USE_LWIP_TCP
+    sock_tcp_ep_t dst = SOCK_IPV6_EP_ANY;
+    dst.port = port;
+    memcpy(&dst.addr.ipv6,&addr,sizeof(ipv6_addr_t));
+    //uint16_t local_port = LWIP_LOCAL_PORT;
+    ret = sock_tcp_connect(&client_sock, &dst, 0, 0);
 #else
-    static gnrc_tcp_tcb_t tcb;
+    gnrc_tcp_tcb_t tcb;
     gnrc_tcp_tcb_init(&tcb);
     LOG_INFO("[SUCCESS] Initialized TCB.\n");
     ret = gnrc_tcp_open_active(&tcb, AF_INET6, (uint8_t *) &addr, port, 0);
@@ -225,8 +234,9 @@ static int tcp_send(int argc, char **argv)
     begin = xtimer_now_usec64();
     while (send_count < count) {
 #ifdef USE_LWIP_TCP
+        ret = sock_tcp_write(&client_sock, buf, MIN(TCP_BUFLEN, bytes));
 #else
-        ret = gnrc_tcp_send(&tcb, buf , MIN(TCP_BUFLEN, bytes), 0);
+        ret = gnrc_tcp_send(&tcb, buf, MIN(TCP_BUFLEN, bytes), 0);
 #endif /* USE_LWIP_TCP */
         if (ret < 0) {
             puts("error, failed to send!");
@@ -247,6 +257,7 @@ static int tcp_send(int argc, char **argv)
     }
     /* close connection and cleanup anyway */
 #ifdef USE_LWIP_TCP
+    sock_tcp_disconnect(&client_sock);
 #else
     gnrc_tcp_close(&tcb);
 #endif /* USE_LWIP_TCP */
