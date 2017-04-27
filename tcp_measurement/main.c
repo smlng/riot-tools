@@ -22,10 +22,10 @@
 #include "lwip/netif.h"
 #include "net/sock/tcp.h"
 
-#define LWIP_SOCK_INBUF_SIZE            (256)
-#define LWIP_SERVER_MSG_QUEUE_SIZE      (8)
-#define LWIP_SERVER_BUFFER_SIZE         (64)
-#define LWIP_LOCAL_PORT                 (4614)
+#define LWIP_SOCK_INBUF_SIZE        (256)
+#define LWIP_SERVER_MSG_QUEUE_SIZE  (8)
+#define LWIP_SERVER_BUFFER_SIZE     (64)
+#define LWIP_LOCAL_PORT             (4614)
 
 static sock_tcp_t server_sock;
 static sock_tcp_t client_sock;
@@ -34,25 +34,26 @@ static msg_t server_msg_queue[LWIP_SERVER_MSG_QUEUE_SIZE];
 
 #else /* that is GNRC TCP */
 
+#define GNRC_TCP_TIMEOUT                        (30U * US_PER_SEC)
+#define GNRC_TCP_CONNECTION_TIMEOUT_DURATION    (GNRC_TCP_TIMEOUT)
 #include "net/gnrc/tcp.h"
-#define GNRC_TCP_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
 
 #endif /* USE_LWIP_TCP */
 
-#define MIN(a, b)            ((a > b) ? b : a)
+#define MIN(a, b)                   ((a > b) ? b : a)
 
 // the port to listen for tcp connections
 #ifndef TCP_PORT
-#define TCP_PORT            (24911U)
+#define TCP_PORT                    (24911U)
 #endif
 // length of buffer for tcp receive
-#define TCP_BUFLEN          (8 * 1024U) /* 8K default */
-#define TCP_TEST_DEFSIZE    (1220U)     /* default send/recv size */
-#define TCP_TEST_DEFCOUNT   (1000U)     /* default send/recv count */
-#define TCP_TEST_PATTERN    (66U)       /* HEX = 0x42 */
-#define TCP_TEST_STATVAL    (100U)      /* print stats every N send/recv */
+#define TCP_BUFLEN                  (8 * 1024U) /* 8K default */
+#define TCP_TEST_DEFSIZE            (1220U)     /* default send/recv size */
+#define TCP_TEST_DEFCOUNT           (1000U)     /* default send/recv count */
+#define TCP_TEST_PATTERN            (66U)       /* HEX = 0x42 */
+#define TCP_TEST_STATVAL            (100U)      /* print stats every N send/recv */
 
-#define MAIN_QUEUE_SIZE     (8)
+#define MAIN_QUEUE_SIZE             (8)
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
 static int tcp_recv(int argc, char **argv);
