@@ -6,21 +6,37 @@
  * directory for more details.
  */
 
-#include "shell.h"
 
-#include "measurement.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-#ifndef USE_LWIP_TCP
+#include "log.h"
 #include "net/af.h"
 #include "net/gnrc/ipv6.h"
-extern int _gnrc_tcp_recv(uint16_t port, uint32_t bytes, uint16_t loops);
-extern int _gnrc_tcp_send(const ipv6_addr_t *addr, uint16_t port, uint32_t bytes, uint16_t loops);
-#else
+#include "net/ipv6/addr.h"
+#include "shell.h"
+#include "xtimer.h"
+
+#ifdef USE_LWIP_TCP
 #include "lwip.h"
 #include "lwip/netif.h"
-extern int _lwip_tcp_recv(uint16_t port, uint32_t bytes, uint16_t loops);
-extern int _lwip_tcp_send(const ipv6_addr_t *addr, uint16_t port, uint32_t bytes, uint16_t loops);
+#else
+#include "net/gnrc/tcp.h"
+#define TCP_TIMEOUT  (GNRC_TCP_CONNECTION_TIMEOUT_DURATION)
 #endif /* USE_LWIP_TCP */
+
+#define MIN(a, b)            ((a > b) ? b : a)
+
+// the port to listen for tcp connections
+#ifndef TCP_PORT
+#define TCP_PORT            (24911U)
+#endif
+// length of buffer for tcp receive
+#define TCP_BUFLEN          (8 * 1024U) /* 8K default */
+#define TCP_TEST_DEFSIZE    (1200U)     /* default send/recv size */
+#define TCP_TEST_DEFCOUNT   (1000U)     /* default send/recv count */
+#define TCP_TEST_PATTERN    (66U)       /* HEX = 0x42 */
+#define TCP_TEST_STATVAL    (100U)      /* print stats every N send/recv */
 
 #define MAIN_QUEUE_SIZE     (8)
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
@@ -34,45 +50,98 @@ static const shell_command_t shell_commands[] = {
     { NULL, NULL, NULL }
 };
 
-uint8_t buf[TCP_BUFLEN];
+static uint8_t buf[TCP_BUFLEN];
+static uint32_t bytes = TCP_TEST_DEFSIZE;
+static uint32_t count = TCP_TEST_DEFCOUNT;
 
 static int tcp_recv(int argc, char **argv)
 {
-    if ((argc != 3) && (argc != 4)) {
-        LOG_ERROR("usage: listen <port> <bytes> [loops]\n");
+    if ((argc < 2) || (argc > 4)) {
+        puts("usage: listen PORT [SIZE] [COUNT]");
+        printf("    listen on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
+        printf("    and stop after COUNT (%d) receive calls.", TCP_TEST_DEFCOUNT);
         return -1;
     }
     /* parse port */
-    uint16_t port = (uint16_t)atoi(argv[1]);
-    if (port <= 0) {
-        LOG_ERROR("send: unable to parse destination port!\n");
+    uint16_t port = (uint16_t)strtoul(argv[1], NULL, 10);
+    if (port == 0) {
+        LOG_ERROR("recv: unable to parse listen port!\n");
         return -3;
     }
     /* parse num bytes */
-    uint32_t bytes = (uint32_t)atoi(argv[2]);
-    if (bytes <= 0) {
-        LOG_ERROR("send: unable to parse number of bytes to send!");
-        return -4;
-    }
-    uint16_t loops = 1;
-    if (argc == 4) {
-        loops = (uint16_t)atoi(argv[3]);
-        if (loops <= 0) {
-            LOG_ERROR("send: unable to parse number of loops!\n");
-            return -5;
+    if (argc > 2) {
+        bytes = (uint32_t)strtoul(argv[2], NULL, 10);
+        if (bytes == 0) {
+            LOG_WARNING("recv: invalid bytes or 0, default to max!\n");
+            bytes = UINT32_MAX;
         }
     }
-    #ifdef USE_LWIP_TCP
+    /* parse count */
+    if (argc == 4) {
+        count = (uint16_t)strtoul(argv[3], NULL, 10);
+        if (count == 0) {
+            LOG_WARNING("recv: invalid count value or 0, default to max!\n");
+            count = UINT32_MAX;
+        }
+    }
+    int ret = -42;
+    /* start listening */
+#ifdef USE_LWIP_TCP
         return _lwip_tcp_recv(port, bytes, loops);
-    #else
-        return _gnrc_tcp_recv(port, bytes, loops);
-    #endif /* USE_LWIP_TCP */
+#else
+    gnrc_tcp_tcb_t tcb;
+    gnrc_tcp_tcb_init(&tcb);
+    LOG_INFO("[SUCCESS] Initialized TCB.\n");
+    /* open listening port */
+    ret = gnrc_tcp_open_passive(&tcb, AF_INET6, NULL, port);
+#endif /* USE_LWIP_TCP */
+    if (ret != 0) {
+        LOG_ERROR("[ERROR] failed to open passive connection!\n");
+        return -6;
+    }
+    uint64_t now, begin;
+    uint32_t recv_bytes = 0;
+    uint64_t diff_us = 0;
+    unsigned recv_count = 0;
+    begin = xtimer_now_usec64();
+    /* receive loop */
+    while (recv_count < count) {
+#ifdef USE_LWIP_TCP
+#else
+        ret = gnrc_tcp_recv(&tcb, (void *)buf, MIN(TCP_BUFLEN, bytes), (TCP_TIMEOUT));
+#endif /* USE_LWIP_TCP */
+        if (ret < 0) {
+            puts("error, failed to receive!");
+            break;
+        }
+        recv_bytes += ret;
+        ++recv_count;
+        if (recv_count % TCP_TEST_STATVAL == 0) {
+            now = xtimer_now_usec64();
+            diff_us = now - begin;
+            printf("%"PRIu32",%"PRIu64",%u\n", recv_bytes, diff_us, recv_count);
+        }
+    }
+    if (recv_count < count) { /* error in loop */
+        now = xtimer_now_usec64();
+        diff_us = now - begin;
+        printf("%"PRIu32",%"PRIu64",%u\n", recv_bytes, diff_us, recv_count);
+    }
+    /* close connection and cleanup anyway */
+#ifdef USE_LWIP_TCP
+#else
+    gnrc_tcp_close(&tcb);
+#endif /* USE_LWIP_TCP */
+    LOG_INFO("[SUCCESS] Closed TCP connection.\n");
+    return 0;
 }
 
 static int tcp_send(int argc, char **argv)
 {
-    if ((argc != 4) && (argc != 5)) {
-        puts("usage: send <addr> <port> <size> [loops]");
+    if ((argc < 2) || (argc > 5)) {
+        puts("usage: send ADDR PORT [SIZE] [COUNT]");
+        printf("    send to ADDR on PORT with buffer of SIZE (%dB)", TCP_TEST_DEFSIZE);
+        printf("    and stop after COUNT (%d) send calls.", TCP_TEST_DEFCOUNT);
         return -1;
     }
 
@@ -83,36 +152,81 @@ static int tcp_send(int argc, char **argv)
         return -2;
     }
     /* parse port */
-    uint16_t port = (uint16_t)atoi(argv[2]);
-    if (port <= 0) {
+    uint16_t port = (uint16_t)strtoul(argv[2], NULL, 10);
+    if (port == 0) {
         LOG_ERROR("send: unable to parse destination port!\n");
         return -3;
     }
     /* parse num bytes */
-    uint32_t bytes = (uint32_t)atoi(argv[3]);
-    if (bytes <= 0) {
-        LOG_ERROR("send: unable to parse number of bytes to send!");
-        return -4;
-    }
-    uint16_t loops = 1;
-    if (argc == 5) {
-        loops = (uint16_t)atoi(argv[4]);
-        if (loops <= 0) {
-            LOG_ERROR("send: unable to parse number of loops!\n");
-            return -5;
+    if (argc > 3) {
+        bytes = (uint32_t)strtoul(argv[3], NULL, 10);
+        if (bytes == 0) {
+            LOG_WARNING("send: invalid bytes or 0, default to max!\n");
+            bytes = UINT32_MAX;
         }
     }
-
+    /* parse count */
+    if (argc == 5) {
+        count = (uint16_t)strtoul(argv[4], NULL, 10);
+        if (count == 0) {
+            LOG_WARNING("send: invalid count value or 0, default to max!\n");
+            count = UINT32_MAX;
+        }
+    }
+    int ret = -42;
 #ifdef USE_LWIP_TCP
-    return _lwip_tcp_send(&addr, port, bytes, loops);
 #else
-    return _gnrc_tcp_send(&addr, port, bytes, loops);
+    static gnrc_tcp_tcb_t tcb;
+    gnrc_tcp_tcb_init(&tcb);
+    LOG_INFO("[SUCCESS] Initialized TCB.\n");
+    ret = gnrc_tcp_open_active(&tcb, AF_INET6, (uint8_t *) &addr, port, 0);
+#endif
+    if (ret != 0) {
+        LOG_ERROR("[ERROR] failed to open active connection!\n");
+        return -6;
+    }
+    LOG_INFO("[SUCCESS] opened TCP connection, start sending.\n");
+
+    memset(buf, TCP_TEST_PATTERN, TCP_BUFLEN);
+    uint64_t now, begin;
+    uint32_t send_bytes = 0;
+    uint64_t diff_us = 0;
+    unsigned send_count = 0;
+    begin = xtimer_now_usec64();
+    while (send_count < count) {
+#ifdef USE_LWIP_TCP
+#else
+        ret = gnrc_tcp_send(&tcb, buf , MIN(TCP_BUFLEN, bytes), 0);
 #endif /* USE_LWIP_TCP */
+        if (ret < 0) {
+            puts("error, failed to send!");
+            break;
+        }
+        send_bytes += ret;
+        ++send_count;
+        if (send_count % TCP_TEST_STATVAL == 0) {
+            now = xtimer_now_usec64();
+            diff_us = now - begin;
+            printf("%"PRIu32",%"PRIu64",%u\n", send_bytes, diff_us, send_count);
+        }
+    }
+    if (send_count < count) { /* error in loop */
+        now = xtimer_now_usec64();
+        diff_us = now - begin;
+        printf("%"PRIu32",%"PRIu64",%u\n", send_bytes, diff_us, send_count);
+    }
+    /* close connection and cleanup anyway */
+#ifdef USE_LWIP_TCP
+#else
+    gnrc_tcp_close(&tcb);
+#endif /* USE_LWIP_TCP */
+    LOG_INFO("[SUCCESS] Closed TCP connection.\n");
+    return 0;
 }
 
 int main(void)
 {
-    printf("\nTCP, run on port %d and IP addresses:\n", TCP_PORT);
+    puts("\nTCP will listen on IP addresses:\n");
 #ifndef USE_LWIP_TCP
     /* get the first IPv6 interface and prints its address */
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
