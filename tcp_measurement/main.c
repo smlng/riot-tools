@@ -132,16 +132,22 @@ static int tcp_recv(int argc, char **argv)
     begin = xtimer_now_usec64();
     /* receive loop */
     while (recv_count < count) {
+        uint32_t bytes_remain = bytes;
+        while (bytes_remain > 0 && ret > 0) {
 #ifdef USE_LWIP_TCP
-        ret = sock_tcp_read(sock, (char *)buf, MIN(TCP_BUFLEN, bytes), SOCK_NO_TIMEOUT);
+            ret = sock_tcp_read(sock, (char *)buf, MIN(TCP_BUFLEN, bytes_remain), SOCK_NO_TIMEOUT);
 #else
-        ret = gnrc_tcp_recv(&tcb, (void *)buf, MIN(TCP_BUFLEN, bytes), GNRC_TCP_TIMEOUT);
+            ret = gnrc_tcp_recv(&tcb, (void *)buf, MIN(TCP_BUFLEN, bytes_remain), GNRC_TCP_TIMEOUT);
 #endif /* USE_LWIP_TCP */
+            recv_bytes += ret;
+            bytes_remain -= ret;
+        }
+
         if (ret < 0) {
             puts("error, failed to receive!");
             break;
         }
-        recv_bytes += ret;
+
         ++recv_count;
         if (recv_count % TCP_TEST_STATVAL == 0) {
             now = xtimer_now_usec64();
@@ -172,7 +178,7 @@ static int tcp_send(int argc, char **argv)
     if ((argc < 2) || (argc > 5)) {
         puts("usage: send ADDR PORT [SIZE] [COUNT]");
         printf("    send to ADDR on PORT with buffer of SIZE (%dB)\n", TCP_TEST_DEFSIZE);
-        printf("    and stop after COUNT (%d) send calls.\n", TCP_TEST_DEFCOUNT);
+        printf("    and stop after COUNT (%d) send calls.\n2", TCP_TEST_DEFCOUNT);
         return -1;
     }
 
@@ -230,16 +236,22 @@ static int tcp_send(int argc, char **argv)
     unsigned send_count = 0;
     begin = xtimer_now_usec64();
     while (send_count < count) {
+        uint32_t bytes_remain = bytes;
+        while (bytes_remain > 0 && ret > 0) {
 #ifdef USE_LWIP_TCP
-        ret = sock_tcp_write(&client_sock, buf, MIN(TCP_BUFLEN, bytes));
+            ret = sock_tcp_write(&client_sock, buf, MIN(TCP_BUFLEN, bytes_remain));
 #else
-        ret = gnrc_tcp_send(&tcb, buf, MIN(TCP_BUFLEN, bytes), 0);
+            ret = gnrc_tcp_send(&tcb, buf, MIN(TCP_BUFLEN, bytes_remain), 0);
 #endif /* USE_LWIP_TCP */
+            send_bytes += ret;
+            bytes_remain -= ret;
+        }
+
         if (ret < 0) {
             puts("error, failed to send!");
             break;
         }
-        send_bytes += ret;
+
         ++send_count;
         if (send_count % TCP_TEST_STATVAL == 0) {
             now = xtimer_now_usec64();
