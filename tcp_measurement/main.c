@@ -10,11 +10,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "kernel_types.h"
 #include "log.h"
 #include "net/af.h"
 #include "net/gnrc/ipv6.h"
 #include "net/ipv6/addr.h"
+#include "sched.h"
 #include "shell.h"
+#include "thread.h"
 #include "xtimer.h"
 
 #ifdef USE_LWIP_TCP
@@ -66,6 +69,32 @@ static const shell_command_t shell_commands[] = {
 };
 
 static uint8_t buf[TCP_BUFLEN];
+
+static void print_stats(uint32_t bytes, uint64_t diff_us, unsigned count)
+{
+    printf("%"PRIu32",%"PRIu64",%u", bytes, diff_us, count);
+#ifdef DEVELHELP
+    for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; i++) {
+        thread_t *p = (thread_t *)sched_threads[i];
+        if (p != NULL) {
+            int mem = p->stack_size - thread_measure_stack_free(p->stack_start);
+            printf(",%"PRIkernel_pid",%s,%d", p->pid, p->name, mem);
+#ifdef MODULE_SCHEDSTATISTICS
+            uint64_t now = _xtimer_now64();
+            uint64_t runtime_ticks = sched_pidlist[i].runtime_ticks;
+            /* add ticks since laststart not accounted for yet */
+            if (thread_getpid() == i) {
+                runtime_ticks += now - sched_pidlist[i].laststart;
+            }
+            printf(",%"PRIu64"", runtime_ticks);
+#else
+            printf(",0");
+#endif
+        }
+    }
+#endif
+    puts("");
+}
 
 static int tcp_recv(int argc, char **argv)
 {
@@ -155,13 +184,13 @@ static int tcp_recv(int argc, char **argv)
         if (recv_count % TCP_TEST_STATVAL == 0) {
             now = xtimer_now_usec64();
             diff_us = now - begin;
-            printf("%"PRIu32",%"PRIu64",%u\n", recv_bytes, diff_us, recv_count);
+            print_stats(recv_bytes, diff_us, recv_count);
         }
     }
     if (recv_count < count) { /* error in loop */
         now = xtimer_now_usec64();
         diff_us = now - begin;
-        printf("%"PRIu32",%"PRIu64",%u\n", recv_bytes, diff_us, recv_count);
+        print_stats(recv_bytes, diff_us, recv_count);
     }
     /* close connection and cleanup anyway */
 #ifdef USE_LWIP_TCP
@@ -262,13 +291,13 @@ static int tcp_send(int argc, char **argv)
         if (send_count % TCP_TEST_STATVAL == 0) {
             now = xtimer_now_usec64();
             diff_us = now - begin;
-            printf("%"PRIu32",%"PRIu64",%u\n", send_bytes, diff_us, send_count);
+            print_stats(send_bytes, diff_us, send_count);
         }
     }
     if (send_count < count) { /* error in loop */
         now = xtimer_now_usec64();
         diff_us = now - begin;
-        printf("%"PRIu32",%"PRIu64",%u\n", send_bytes, diff_us, send_count);
+        print_stats(send_bytes, diff_us, send_count);
     }
     /* close connection and cleanup anyway */
 #ifdef USE_LWIP_TCP
