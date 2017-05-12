@@ -86,9 +86,9 @@ static void print_stats(uint32_t bytes, uint64_t diff_us, unsigned count)
             if (thread_getpid() == i) {
                 runtime_ticks += now - sched_pidlist[i].laststart;
             }
-            printf(",%"PRIu64"", runtime_ticks);
+            printf(",%"PRIu64",%u", runtime_ticks, sched_pidlist[i].schedules);
 #else
-            printf(",0");
+            printf(",0,0");
 #endif
         }
     }
