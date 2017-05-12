@@ -69,16 +69,35 @@ static const shell_command_t shell_commands[] = {
 };
 
 static uint8_t buf[TCP_BUFLEN];
+static int header = 1;
+
+static void print_header(void)
+{
+    printf("BYTES,TS,COUNT");
+#ifdef DEVELHELP
+    for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; i++) {
+        thread_t *p = (thread_t *)sched_threads[i];
+        if (p != NULL) {
+            printf(",NAME,PID,RSS,TICKS,SWITCH");
+        }
+    }
+#endif
+    puts("");
+}
 
 static void print_stats(uint32_t bytes, uint64_t diff_us, unsigned count)
 {
+    if (header) {
+        print_header();
+        header = 0;
+    }
     printf("%"PRIu32",%"PRIu64",%u", bytes, diff_us, count);
 #ifdef DEVELHELP
     for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; i++) {
         thread_t *p = (thread_t *)sched_threads[i];
         if (p != NULL) {
             int mem = p->stack_size - thread_measure_stack_free(p->stack_start);
-            printf(",%"PRIkernel_pid",%s,%d", p->pid, p->name, mem);
+            printf(",%s,%"PRIkernel_pid",%d", p->name, p->pid, mem);
 #ifdef MODULE_SCHEDSTATISTICS
             uint64_t now = _xtimer_now64();
             uint64_t runtime_ticks = sched_pidlist[i].runtime_ticks;
@@ -100,6 +119,9 @@ static int tcp_recv(int argc, char **argv)
 {
     uint32_t bytes = TCP_TEST_DEFSIZE;
     uint32_t count = TCP_TEST_DEFCOUNT;
+
+    header = 1;
+
     if ((argc < 2) || (argc > 4)) {
         puts("usage: listen PORT [SIZE] [COUNT]");
         printf("    listen on PORT with buffer of SIZE (%dB)\n", TCP_TEST_DEFSIZE);
@@ -206,6 +228,8 @@ static int tcp_send(int argc, char **argv)
 {
     uint32_t bytes = TCP_TEST_DEFSIZE;
     uint32_t count = TCP_TEST_DEFCOUNT;
+
+    header = 1;
 
     if ((argc < 2) || (argc > 5)) {
         puts("usage: send ADDR PORT [SIZE] [COUNT]");
