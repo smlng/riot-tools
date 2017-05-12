@@ -78,7 +78,7 @@ static void print_header(void)
     for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; i++) {
         thread_t *p = (thread_t *)sched_threads[i];
         if (p != NULL) {
-            printf(",NAME%"PRIkernel_pid",PID%"PRIkernel_pid",RSS%"PRIkernel_pid",TICKS%"PRIkernel_pid",SWITCH%"PRIkernel_pid"", i,i,i,i,i);
+            printf(",NAME%"PRIkernel_pid",RSS%"PRIkernel_pid",TICKS%"PRIkernel_pid",SWITCH%"PRIkernel_pid"", i,i,i,i);
         }
     }
 #endif
@@ -97,7 +97,7 @@ static void print_stats(uint32_t bytes, uint64_t diff_us, unsigned count)
         thread_t *p = (thread_t *)sched_threads[i];
         if (p != NULL) {
             int mem = p->stack_size - thread_measure_stack_free(p->stack_start);
-            printf(",%s,%"PRIkernel_pid",%d", p->name, p->pid, mem);
+            printf(",%s,%d", p->name, mem);
 #ifdef MODULE_SCHEDSTATISTICS
             uint64_t now = _xtimer_now64();
             uint64_t runtime_ticks = sched_pidlist[i].runtime_ticks;
