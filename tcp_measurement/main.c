@@ -78,7 +78,7 @@ static void print_header(void)
     for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; i++) {
         thread_t *p = (thread_t *)sched_threads[i];
         if (p != NULL) {
-            printf(",NAME,PID,RSS,TICKS,SWITCH");
+            printf(",NAME%"PRIkernel_pid",PID%"PRIkernel_pid",RSS%"PRIkernel_pid",TICKS%"PRIkernel_pid",SWITCH%"PRIkernel_pid"", i,i,i,i,i);
         }
     }
 #endif
