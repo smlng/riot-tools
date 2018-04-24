@@ -337,18 +337,18 @@ int main(void)
 {
     puts("\nTCP will listen on IP addresses:\n");
 #ifndef USE_LWIP_TCP
-    /* get the first IPv6 interface and prints its address */
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    size_t numof = gnrc_netif_get(ifs);
-    if (numof > 0) {
-        gnrc_ipv6_netif_t *entry = gnrc_ipv6_netif_get(ifs[0]);
+    gnrc_netif_t *ifs = gnrc_netif_iter(NULL);
+    if (ifs) {
+        gnrc_netif_ipv6_t *entry = &(ifs->ipv6);
         char ipv6_addr_str[IPV6_ADDR_MAX_STR_LEN];
-        for (int i = 0; i < GNRC_IPV6_NETIF_ADDR_NUMOF; i++) {
-            if ((ipv6_addr_is_link_local(&entry->addrs[i].addr)) && !(entry->addrs[i].flags & GNRC_IPV6_NETIF_ADDR_FLAGS_NON_UNICAST)) {
-                ipv6_addr_to_str(ipv6_addr_str, &entry->addrs[i].addr, IPV6_ADDR_MAX_STR_LEN);
+        
+        for (int i = 0; i <  GNRC_NETIF_IPV6_ADDRS_NUMOF; ++i) {
+            if ((ipv6_addr_is_link_local(&entry->addrs[i])) && !(entry->addrs_flags[i] & GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
+                ipv6_addr_to_str(ipv6_addr_str, &entry->addrs[i], IPV6_ADDR_MAX_STR_LEN);
                 printf(" -- %s\n", ipv6_addr_str);
             }
         }
+        ifs = gnrc_netif_iter(ifs);
     }
 #else
     for (struct netif *iface = netif_list; iface != NULL; iface = iface->next) {
